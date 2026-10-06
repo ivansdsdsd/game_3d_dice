@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full w-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>澳門筷子基泰式料理 - 3D 遊戲化會員與大富翁系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <!-- Three.js Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- GSAP for Smooth Camera & Token Movement -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans TC', 'sans-serif'],
+                    },
+                    colors: {
+                        thai: {
+                            green: '#00A86B',
+                            darkgreen: '#063826',
+                            gold: '#FFD700',
+                            amber: '#D97706',
+                            red: '#991B1B',
+                            dark: '#08140F'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #08140F;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Glassmorphism Styling with Thai Gold/Green Accent */
+        .glass-panel {
+            background: rgba(8, 26, 19, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 215, 0, 0.25);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+        }
+
+        .glass-card {
+            background: rgba(15, 41, 30, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .glass-button {
+            background: rgba(255, 215, 0, 0.1);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-button:hover {
+            background: rgba(0, 168, 107, 0.4);
+            border-color: #FFD700;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 168, 107, 0.4);
+        }
+
+        /* Gold Gradient Glow */
+        .gold-text {
+            background: linear-gradient(135deg, #FFF099 0%, #FFD700 50%, #D97706 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Canvas Overlay Controls */
+        #webgl-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        /* Barcode Simulation */
+        .barcode-line {
+            display: inline-block;
+            height: 100%;
+            background-color: #111;
+        }
+    </style>
+</head>
+<body class="h-full w-full text-white">
+
+    <!-- WebGL Canvas Container -->
+    <div id="webgl-container"></div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer" class="flex flex-col justify-between p-4 md:p-6">
+
+        <!-- TOP HUD (Visible in MONOPOLY_3D_GAME) -->
+        <header id="hud-header" class="flex justify-between items-center w-full pointer-events-auto">
+            <!-- Restaurant Brand Logo -->
+            <div class="flex items-center gap-3 glass-panel px-4 py-2.5 rounded-2xl border border-amber-500/40">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 via-amber-600 to-emerald-800 flex items-center justify-center font-black text-2xl shadow-lg text-amber-100 border border-yellow-300/40">
+                    <i class="fa-solid fa-utensils"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-base md:text-lg tracking-wider gold-text leading-tight">
+                        Monopoly
+                    </h1>
+                    <p class="text-[10px] md:text-xs text-emerald-300/80 font-medium tracking-widest flex items-center gap-1">
+                        <i class="fa-solid fa-location-dot text-amber-400"></i> 3D 美食大富翁會員系統
+                    </p>
+                </div>
+            </div>
+
+            <!-- Right Controls: Dice Energy, Food Points & Wallet Button -->
+            <div class="flex items-center gap-2 md:gap-3">
+                <button onclick="returnToExploreGame()" class="glass-button w-10 h-10 rounded-xl flex items-center justify-center text-emerald-300 text-sm" title="返回澳門探索遊戲" aria-label="返回澳門探索遊戲">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+
+                <!-- Food Points -->
+                <div class="glass-panel px-3.5 py-2 rounded-xl flex items-center gap-2 text-xs md:text-sm font-bold border border-amber-500/30">
+                    <i class="fa-solid fa-[#FFD700] fa-bowl-food text-amber-400"></i>
+                    <span class="text-gray-300 hidden md:inline">美食積分:</span>
+                    <span id="score-display" class="text-amber-300 text-sm md:text-base font-black">1,500</span>
+                </div>
+
+                <!-- Dice Rolls Left -->
+                <div class="glass-panel px-3.5 py-2 rounded-xl flex items-center gap-2 text-xs md:text-sm font-bold border border-emerald-500/40">
+                    <i class="fa-solid fa-dice text-emerald-400 animate-spin" style="animation-duration: 8s;"></i>
+                    <span class="text-gray-300 hidden md:inline">剩餘骰子:</span>
+                    <span id="dice-count-display" class="text-emerald-400 text-sm md:text-base font-black">5 次</span>
+                </div>
+
+                <!-- My Wallet Button -->
+                <button onclick="openWalletModal()" class="glass-button px-3.5 py-2 rounded-xl flex items-center gap-2 text-xs md:text-sm font-bold text-amber-300 border border-amber-400/50 hover:bg-amber-500/20">
+                    <i class="fa-solid fa-ticket text-amber-400"></i>
+                    <span>我的卡包</span>
+                    <span id="wallet-badge" class="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-black">0</span>
+                </button>
+
+                <!-- Audio Toggle -->
+                <button onclick="toggleAudio()" class="glass-button w-10 h-10 rounded-xl flex items-center justify-center text-emerald-400 text-sm">
+                    <i id="sound-icon" class="fa-solid fa-volume-xmark"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- BOTTOM GAME CONTROLLER (Visible in MONOPOLY_3D_GAME) -->
+        <footer id="game-controller" class="w-full flex flex-col items-center gap-3 pointer-events-auto pb-2">
+            <!-- Target Tile Info Bar -->
+            <div id="tile-hint-bar" class="glass-panel px-5 py-2 rounded-full text-xs md:text-sm text-emerald-200 flex items-center gap-2 border border-emerald-500/40 shadow-xl">
+                <i class="fa-solid fa-compass text-amber-400 animate-bounce"></i>
+                <span>目前停留在：<b id="current-tile-name" class="text-amber-300">筷子基起點格</b></span>
+            </div>
+
+            <!-- Roll Dice Primary Button -->
+            <div class="flex items-center gap-4">
+                <button id="btn-roll-dice" onclick="handleRollDice()" class="relative group bg-gradient-to-r from-amber-500 via-amber-600 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-black text-base md:text-lg py-4 px-10 rounded-2xl shadow-2xl shadow-amber-600/50 flex items-center gap-3 transition-all transform active:scale-95 border-2 border-yellow-300">
+                    <i class="fa-solid fa-dice-five text-2xl text-slate-950 group-hover:rotate-180 transition-transform duration-500"></i>
+                    <span>擲骰子前進 (Roll Dice)</span>
+                    <span class="bg-slate-900/40 text-amber-200 text-xs px-2.5 py-1 rounded-lg border border-amber-300/30">消耗 1 骰</span>
+                </button>
+            </div>
+        </footer>
+
+        <!-- ================= MODALS & DRAWERS ================= -->
+
+        <!-- MEMBER WALLET DRAWER -->
+        <div id="wallet-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-500">
+            <div class="glass-panel w-full max-w-xl p-6 md:p-8 rounded-3xl border-2 border-amber-400/40 relative overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="flex justify-between items-center pb-4 border-b border-amber-500/20 mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 text-xl">
+                            <i class="fa-solid fa-wallet"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-black text-white gold-text">我的會員卡包</h2>
+                            <p class="text-xs text-gray-400">電子優惠券與獎賞</p>
+                        </div>
+                    </div>
+                    <button onclick="closeWalletModal()" class="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-gray-300 hover:text-white" aria-label="關閉卡包">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div id="wallet-items-container" class="space-y-4 overflow-y-auto pr-1 my-2 flex-1"></div>
+            </div>
+        </div>
+
+        <!-- PHASE 3: TILE EVENT LANDMARK MODAL -->
+        <div id="event-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-500">
+            <div id="event-card" class="glass-panel w-full max-w-md p-6 md:p-8 rounded-3xl border-2 border-amber-400/50 transform scale-95 transition-transform duration-500 text-center relative overflow-hidden">
+                <div id="event-icon-bg" class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-3xl text-amber-400 shadow-lg">
+                    <i id="event-icon" class="fa-solid fa-utensils"></i>
+                </div>
+
+                <span id="event-tag" class="text-xs font-bold text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/30">
+                    大富翁格事件
+                </span>
+
+                <h3 id="event-title" class="text-2xl font-black text-white mt-3 mb-2 gold-text">
+                    踩中景點名稱
+                </h3>
+
+                <p id="event-desc" class="text-xs md:text-sm text-gray-300 mb-6 leading-relaxed">
+                    事件詳情內容加載中...
+                </p>
+
+                <div id="event-reward-box" class="glass-card p-4 rounded-2xl border border-amber-400/30 mb-6 flex items-center justify-between text-left">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-400/20 flex items-center justify-center text-amber-400 font-bold text-lg">
+                            <i class="fa-solid fa-award"></i>
+                        </div>
+                        <div>
+                            <div class="text-xs text-amber-300 font-bold">格子專屬獎勵</div>
+                            <div id="event-reward-text" class="text-xs text-gray-200">獲得優惠券或積分</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="btn-claim-event" onclick="claimEventReward()" class="w-full bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-400 hover:to-emerald-500 text-slate-950 font-black py-3.5 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span>收入會員卡包並繼續</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- PHASE 3: TRIVIA QUIZ MODAL -->
+        <div id="quiz-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-500">
+            <div class="glass-panel w-full max-w-md p-6 md:p-8 rounded-3xl border-2 border-emerald-400/50 text-center relative overflow-hidden">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-2xl text-emerald-400">
+                    <i class="fa-solid fa-circle-question"></i>
+                </div>
+                <span class="text-xs font-bold text-emerald-400 uppercase tracking-widest">泰國美食小知識問答</span>
+                <h3 id="quiz-question" class="text-lg font-black text-white mt-2 mb-4">
+                    問題內容加載中？
+                </h3>
+
+                <div id="quiz-options-container" class="space-y-2.5 mb-6 text-left">
+                    <!-- Dynamic quiz options -->
+                </div>
+            </div>
+        </div>
+
+        <!-- INITIAL LOADING OVERLAY -->
+        <div id="loading-overlay" class="fixed inset-0 z-50 bg-[#08140F] flex flex-col items-center justify-center pointer-events-auto transition-opacity duration-700">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-emerald-600 flex items-center justify-center text-3xl font-black text-slate-950 shadow-2xl mb-6 animate-bounce border-2 border-yellow-300">
+                <i class="fa-solid fa-utensils"></i>
+            </div>
+            <h2 class="text-xl font-black text-white gold-text tracking-wider mb-2">澳門筷子基泰味鮮 3D 棋盤載入中...</h2>
+            <p class="text-xs text-emerald-400/80 font-medium mb-6">正在生成泰式涼亭、嘟嘟車、泰奶模型與 16 格大富翁軌道</p>
+            <div class="w-64 h-2 bg-gray-900 rounded-full overflow-hidden p-0.5 border border-amber-500/30">
+                <div id="loading-bar" class="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-emerald-500 rounded-full w-0 transition-all duration-300"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MAIN GAME ENGINE SCRIPT -->
+    <script>
+        // --- GAME STATE VARIABLES ---
+        let scene, camera, renderer, controls;
+        let islandGroup, monopolyTrackGroup, tukTukTokenMesh;
+        let tileMeshes = [];
+        let currentTileIndex = 0;
+        let isMovingToken = false;
+        let diceRollsLeft = 5;
+        let foodScore = 1500;
+        let audioCtx = null;
+        let isAudioPlaying = false;
+
+        // User Wallet Inventory
+        let userWallet = [];
+
+        function migrateWalletCoupon(coupon) {
+            const legacyLandmarks = [
+                { match: '台北 101', title: '澳門旅遊塔觀景台', desc: '登上澳門旅遊塔俯瞰南灣與珠江口天際線，探索世界級高空觀景體驗；使用黑松沙士專屬優惠，為旅程添一份清涼。', reward: '黑松沙士飲品折抵 ¥10' },
+                { match: '日月潭', title: '大三巴牌坊歷史街區', desc: '漫步大三巴牌坊與周邊歷史街區，細看中西文化交融的城市印記；探索澳門老城風情並領取專屬餐飲優惠。', reward: '大三巴歷史街區套餐 85 折' },
+                { match: '阿里山', title: '議事亭前地步行區', desc: '從議事亭前地出發，沿著波浪紋碎石路探索歷史建築與特色小店，感受澳門獨有的葡式廣場風情。', reward: '議事亭前地美食套餐 85 折' },
+                { match: '墾丁', title: '路環黑沙海灘', desc: '到路環黑沙海灘感受澳門悠閒海岸，沿海散步後來一罐冰鎮黑松沙士，享受遠離鬧市的清涼時光。', reward: '路環海岸活動折抵 ¥100' }
+            ];
+            const legacy = legacyLandmarks.find(item => coupon.title?.includes(item.match));
+            return legacy ? { ...coupon, title: legacy.title, desc: legacy.desc, reward: legacy.reward } : coupon;
+        }
+
+        function loadWalletCoupons() {
+            try {
+                const stored = JSON.parse(localStorage.getItem('gogotaiwan-coupons') || '[]');
+                const payload = new URLSearchParams(window.location.search).get('coupons');
+                const incoming = payload ? JSON.parse(payload) : [];
+                userWallet = [...stored, ...incoming].map(migrateWalletCoupon).filter((coupon, index, coupons) =>
+                    coupon && coupon.id && coupons.findIndex(item => item.id === coupon.id) === index
+                );
+                localStorage.setItem('gogotaiwan-coupons', JSON.stringify(userWallet));
+            } catch (error) {
+                console.warn('Unable to load wallet coupons:', error);
+            }
+            updateWalletUI();
+        }
+
+        function saveWalletCoupons() {
+            try {
+                localStorage.setItem('gogotaiwan-coupons', JSON.stringify(userWallet));
+            } catch (error) {
+                console.warn('Unable to save wallet coupons:', error);
+            }
+            updateWalletUI();
+        }
+
+        // Camera Views
+        const CAM_OVERVIEW = { pos: { x: 0, y: 28, z: 32 }, target: { x: 0, y: 0, z: 0 } };
+
+        // 16-Tile Monopoly Track Layout & Data Dictionary
+        const MONOPOLY_TILES = [
+            { id: 0,  name: '筷子基起點格', type: 'START', icon: 'fa-flag-checkered', color: 0xFFD700, desc: '歡迎來到澳門筷子基泰味鮮！每次經過起點可獲得 +200 美食積分。', reward: '美食積分 +200' },
+            { id: 1,  name: '正宗泰式奶茶', type: 'THAI_TEA', icon: 'fa-glass-water', color: 0xD97706, desc: '踩中泰奶格！獲得「手沖泰式冰奶茶 免費換領券」乙張。', reward: '泰奶免費換領券' },
+            { id: 2,  name: '幸運命運格', type: 'FATE', icon: 'fa-wand-magic-sparkles', color: 0x00A86B, desc: '泰國愛神降臨！贈送你額外 1 次骰子機會。', reward: '免費骰子 +1 次' },
+            { id: 3,  name: '冬蔭功海鮮鍋', type: 'TOM_YUM', icon: 'fa-pepper-hot', color: 0x991B1B, desc: '踩中招牌冬蔭功格！獲得「冬蔭功海鮮鍋 7 折優惠券」。', reward: '冬蔭功 7 折券' },
+            { id: 4,  name: '泰菜小知識問答', type: 'QUIZ', icon: 'fa-circle-question', color: 0x0284C7, desc: '回答關於泰國美食的題目，答對即可獲得驚喜禮包！', reward: '答對獲 +300 積分' },
+            { id: 5,  name: '黃咖哩炒蟹格', type: 'CURRY_CRAB', icon: 'fa-crab', color: 0xF59E0B, desc: '鮮美爆汁黃咖哩蟹！獲得「黃咖哩蟹 $50 折扣券」。', reward: '黃咖哩蟹 $50 券' },
+            { id: 6,  name: '美食驚喜寶箱', type: 'CHEST', icon: 'fa-box-open', color: 0x10B981, desc: '打開泰味鮮寶箱，裡面裝滿了獎賞！美食積分 +300。', reward: '美食積分 +300' },
+            { id: 7,  name: '芒果糯米飯格', type: 'MANGO_RICE', icon: 'fa-bowl-rice', color: 0xFBBF24, desc: '甜美多汁椰香芒果糯米飯！獲得「芒果糯米飯半價券」。', reward: '芒果糯米飯 5 折券' },
+            { id: 8,  name: '泰式火山排骨', type: 'VOLCANO_RIBS', icon: 'fa-drumstick-bite', color: 0xB91C1C, desc: '視覺與味覺雙重震撼！獲得「火山排骨 $30 折扣券」。', reward: '火山排骨 $30 券' },
+            { id: 9,  name: '嘟嘟車快送格', type: 'FATE', icon: 'fa-truck-fast', color: 0x00A86B, desc: '搭乘嘟嘟車抄捷徑！美食積分 +150。', reward: '美食積分 +150' },
+            { id: 10, name: '泰式酸辣生蝦', type: 'RAW_SHRIMP', icon: 'fa-shrimp', color: 0x06B6D4, desc: '極致鮮甜冰爽生蝦！獲得「泰式生蝦 8 折優惠券」。', reward: '泰式生蝦 8 折券' },
+            { id: 11, name: '泰菜小知識問答', type: 'QUIZ', icon: 'fa-circle-question', color: 0x0284C7, desc: '測試你對泰國料理的了解！', reward: '答對獲 +300 積分' },
+            { id: 12, name: '青咖哩雞肉格', type: 'GREEN_CURRY', icon: 'fa-bowl-food', color: 0x059669, desc: '椰香濃郁青咖哩！獲得「青咖哩雞 $25 折扣券」。', reward: '青咖哩雞 $25 券' },
+            { id: 13, name: '金牌泰式炒河', type: 'PAD_THAI', icon: 'fa-utensils', color: 0xD97706, desc: '經典 Pad Thai 泰式炒河粉！獲得「炒河粉兌換券」。', reward: 'Pad Thai 兌換券' },
+            { id: 14, name: '幸運命運格', type: 'FATE', icon: 'fa-clover', color: 0x00A86B, desc: '幸運星高照！獲得免費泰奶兌換券。', reward: '泰奶免費換領券' },
+            { id: 15, name: '泰式金邊粉格', type: 'CHEST', icon: 'fa-gifts', color: 0xF59E0B, desc: '壓軸美食大獎！美食積分 +500。', reward: '美食積分 +500' }
+        ];
+
+        // --- 1. THREE.JS ENGINE SETUP ---
+        function initEngine() {
+            const container = document.getElementById('webgl-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x08140F);
+            scene.fog = new THREE.FogExp2(0x08140F, 0.015);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(CAM_OVERVIEW.pos.x, CAM_OVERVIEW.pos.y, CAM_OVERVIEW.pos.z);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+            controls.minDistance = 8;
+            controls.maxDistance = 60;
+            controls.target.set(CAM_OVERVIEW.target.x, CAM_OVERVIEW.target.y, CAM_OVERVIEW.target.z);
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0xfff5ea, 0.75);
+            scene.add(ambient);
+
+            const sun = new THREE.DirectionalLight(0xffe8ba, 1.4);
+            sun.position.set(20, 35, 15);
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 2048;
+            sun.shadow.mapSize.height = 2048;
+            sun.shadow.camera.near = 0.5;
+            sun.shadow.camera.far = 100;
+            const d = 25;
+            sun.shadow.camera.left = -d; sun.shadow.camera.right = d;
+            sun.shadow.camera.top = d; sun.shadow.camera.bottom = -d;
+            scene.add(sun);
+
+            const emeraldRim = new THREE.DirectionalLight(0x00A86B, 0.8);
+            emeraldRim.position.set(-20, 15, -20);
+            scene.add(emeraldRim);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- 2. BUILD 3D WORLD & PROCEDURAL MODELS ---
+        function build3DWorld() {
+            updateLoadingBar(20);
+
+            islandGroup = new THREE.Group();
+            monopolyTrackGroup = new THREE.Group();
+            scene.add(islandGroup);
+            scene.add(monopolyTrackGroup);
+
+            // Water Body
+            const oceanGeo = new THREE.PlaneGeometry(120, 120, 30, 30);
+            const oceanMat = new THREE.MeshStandardMaterial({
+                color: 0x054d36, roughness: 0.1, metalness: 0.3, flatShading: true, transparent: true, opacity: 0.85
+            });
+            const ocean = new THREE.Mesh(oceanGeo, oceanMat);
+            ocean.rotation.x = -Math.PI / 2;
+            ocean.position.y = -0.2;
+            ocean.receiveShadow = true;
+            scene.add(ocean);
+
+            // Central Island Base (Sandy Beach + Lush Green Grass)
+            const islandBaseGeo = new THREE.CylinderGeometry(13.5, 15.0, 1.2, 32);
+            const islandBaseMat = new THREE.MeshStandardMaterial({ color: 0xD4A373, roughness: 0.9, flatShading: true });
+            const islandBase = new THREE.Mesh(islandBaseGeo, islandBaseMat);
+            islandBase.position.y = 0.2;
+            islandBase.receiveShadow = true;
+            islandGroup.add(islandBase);
+
+            const grassGeo = new THREE.CylinderGeometry(12.2, 13.0, 0.6, 32);
+            const grassMat = new THREE.MeshStandardMaterial({ color: 0x0B4F3A, roughness: 0.6, flatShading: true });
+            const grass = new THREE.Mesh(grassGeo, grassMat);
+            grass.position.y = 0.9;
+            grass.receiveShadow = true;
+            grass.castShadow = true;
+            islandGroup.add(grass);
+
+            updateLoadingBar(50);
+
+            // Build Thai Landmarks
+            createThaiPavilion();
+            createGiantThaiMilkTea();
+            createTomYumGoongPot();
+            createThaiElephantStatue();
+            createPalmTrees();
+
+            // Build 16-Tile Monopoly Grid Track
+            createMonopolyTrack();
+
+            // Build Tuk-Tuk Player Token
+            createTukTukToken();
+
+            updateLoadingBar(100);
+
+            setTimeout(() => {
+                const overlay = document.getElementById('loading-overlay');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.remove(), 700);
+            }, 400);
+        }
+
+        // --- THAI LANDMARK 1: POINTED ROOF PAVILION ---
+        function createThaiPavilion() {
+            const pavilion = new THREE.Group();
+            pavilion.position.set(0, 1.2, 0);
+
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8, roughness: 0.2 });
+            const redMat = new THREE.MeshStandardMaterial({ color: 0x991B1B, roughness: 0.4 });
+
+            // Base Floor
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.3, 3.5), redMat);
+            floor.position.y = 0.15;
+            pavilion.add(floor);
+
+            // 4 Pillars
+            const pillarGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.8, 8);
+            [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]].forEach(p => {
+                const pillar = new THREE.Mesh(pillarGeo, goldMat);
+                pillar.position.set(p[0], 1.0, p[1]);
+                pillar.castShadow = true;
+                pavilion.add(pillar);
+            });
+
+            // Tiered Thai Pointed Roof
+            for (let i = 0; i < 3; i++) {
+                const roofSeg = new THREE.Mesh(new THREE.ConeGeometry(2.5 - i * 0.6, 0.8, 4), redMat);
+                roofSeg.position.y = 2.2 + i * 0.6;
+                roofSeg.rotation.y = Math.PI / 4;
+                roofSeg.castShadow = true;
+                pavilion.add(roofSeg);
+            }
+
+            // Top Spire
+            const spire = new THREE.Mesh(new THREE.ConeGeometry(0.15, 1.2, 8), goldMat);
+            spire.position.y = 4.2;
+            pavilion.add(spire);
+
+            islandGroup.add(pavilion);
+        }
+
+        // --- THAI LANDMARK 2: GIANT THAI MILK TEA CUP ---
+        function createGiantThaiMilkTea() {
+            const teaGroup = new THREE.Group();
+            teaGroup.position.set(-4.5, 1.2, -3.5);
+
+            const cupGeo = new THREE.CylinderGeometry(0.9, 0.6, 2.0, 16);
+            const cupMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff, transmission: 0.8, opacity: 1, transparent: true, roughness: 0.1
+            });
+            const cup = new THREE.Mesh(cupGeo, cupMat);
+            cup.position.y = 1.0;
+            teaGroup.add(cup);
+
+            // Orange Liquid
+            const liquidGeo = new THREE.CylinderGeometry(0.85, 0.58, 1.7, 16);
+            const liquidMat = new THREE.MeshStandardMaterial({ color: 0xD97706, roughness: 0.2 });
+            const liquid = new THREE.Mesh(liquidGeo, liquidMat);
+            liquid.position.y = 0.9;
+            teaGroup.add(liquid);
+
+            // Straw
+            const strawGeo = new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8);
+            const strawMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const straw = new THREE.Mesh(strawGeo, strawMat);
+            straw.position.set(0.2, 1.8, 0.2);
+            straw.rotation.z = -0.2;
+            teaGroup.add(straw);
+
+            islandGroup.add(teaGroup);
+        }
+
+        // --- THAI LANDMARK 3: TOM YUM GOONG SEAFOOD POT ---
+        function createTomYumGoongPot() {
+            const potGroup = new THREE.Group();
+            potGroup.position.set(4.5, 1.2, -3.5);
+
+            const potMat = new THREE.MeshStandardMaterial({ color: 0xB91C1C, metalness: 0.6, roughness: 0.3 });
+            const potGeo = new THREE.CylinderGeometry(1.2, 0.8, 1.0, 16);
+            const pot = new THREE.Mesh(potGeo, potMat);
+            pot.position.y = 0.5;
+            potGroup.add(pot);
+
+            // Soup surface
+            const soupGeo = new THREE.CylinderGeometry(1.15, 1.15, 0.1, 16);
+            const soupMat = new THREE.MeshStandardMaterial({ color: 0xDC2626, roughness: 0.1 });
+            const soup = new THREE.Mesh(soupGeo, soupMat);
+            soup.position.y = 0.95;
+            potGroup.add(soup);
+
+            // Giant Shrimp Accent
+            const shrimpMat = new THREE.MeshStandardMaterial({ color: 0xF97316 });
+            const shrimp = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.12, 8, 16, Math.PI * 1.2), shrimpMat);
+            shrimp.position.set(0.2, 1.2, 0);
+            shrimp.rotation.x = Math.PI / 3;
+            potGroup.add(shrimp);
+
+            islandGroup.add(potGroup);
+        }
+
+        // --- THAI LANDMARK 4: ELEPHANT STATUE ---
+        function createThaiElephantStatue() {
+            const elephant = new THREE.Group();
+            elephant.position.set(-4.0, 1.2, 4.0);
+
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x64748B, roughness: 0.8 });
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8 });
+
+            // Body & Head
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 1.0), bodyMat);
+            body.position.y = 0.9;
+            elephant.add(body);
+
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8), bodyMat);
+            head.position.set(0.9, 1.3, 0);
+            elephant.add(head);
+
+            // Trunk Curved Up
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.9, 8), bodyMat);
+            trunk.position.set(1.4, 1.5, 0);
+            trunk.rotation.z = -Math.PI / 4;
+            elephant.add(trunk);
+
+            // Gold Ceremonial Blanket
+            const blanket = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 1.05), goldMat);
+            blanket.position.set(0, 1.52, 0);
+            elephant.add(blanket);
+
+            islandGroup.add(elephant);
+        }
+
+        function createPalmTrees() {
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350F });
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803D, flatShading: true });
+
+            [ [3.5, 3.5], [-3.0, -5.0], [5.0, 1.0], [-5.0, 0.5] ].forEach(pos => {
+                const tree = new THREE.Group();
+                tree.position.set(pos[0], 1.2, pos[1]);
+
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.18, 2.2, 6), trunkMat);
+                trunk.position.y = 1.1;
+                tree.add(trunk);
+
+                for (let i = 0; i < 5; i++) {
+                    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.5, 4), leafMat);
+                    leaf.position.set(0, 2.2, 0);
+                    leaf.rotation.z = Math.PI / 3;
+                    leaf.rotation.y = (i * Math.PI * 2) / 5;
+                    tree.add(leaf);
+                }
+                islandGroup.add(tree);
+            });
+        }
+
+        // --- MONOPOLY 16-TILE CIRCULAR TRACK ---
+        function createMonopolyTrack() {
+            const radius = 10.5;
+            const tileCount = 16;
+
+            for (let i = 0; i < tileCount; i++) {
+                const angle = (i * Math.PI * 2) / tileCount;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+
+                const tileData = MONOPOLY_TILES[i];
+
+                // Tile Platform Geometry
+                const platformGeo = new THREE.BoxGeometry(2.2, 0.35, 2.2);
+                const platformMat = new THREE.MeshStandardMaterial({
+                    color: tileData.color, roughness: 0.3, metalness: 0.2
+                });
+                const tileMesh = new THREE.Mesh(platformGeo, platformMat);
+                tileMesh.position.set(x, 1.1, z);
+                tileMesh.rotation.y = -angle; // Face outwards
+                tileMesh.castShadow = true;
+                tileMesh.receiveShadow = true;
+
+                // Border Highlight
+                const borderGeo = new THREE.BoxGeometry(2.3, 0.1, 2.3);
+                const borderMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.9 });
+                const border = new THREE.Mesh(borderGeo, borderMat);
+                border.position.y = -0.15;
+                tileMesh.add(border);
+
+                monopolyTrackGroup.add(tileMesh);
+
+                // Save coordinate for token navigation
+                tileMeshes.push({
+                    mesh: tileMesh,
+                    pos: new THREE.Vector3(x, 1.35, z),
+                    data: tileData
+                });
+            }
+        }
+
+        // --- TUK-TUK PLAYER TOKEN ---
+        function createTukTukToken() {
+            tukTukTokenMesh = new THREE.Group();
+
+            const blueMat = new THREE.MeshStandardMaterial({ color: 0x0284C7, metalness: 0.5 });
+            const yellowMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8 });
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+
+            // Main Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 1.3), blueMat);
+            body.position.y = 0.4;
+            tukTukTokenMesh.add(body);
+
+            // Canopy Roof
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 1.2), yellowMat);
+            roof.position.y = 0.95;
+            tukTukTokenMesh.add(roof);
+
+            // Wheels (3 wheels)
+            const wheelGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.15, 12);
+            wheelGeo.rotateZ(Math.PI / 2);
+
+            const w1 = new THREE.Mesh(wheelGeo, wheelMat);
+            w1.position.set(0, 0.2, 0.5); // Front wheel
+            tukTukTokenMesh.add(w1);
+
+            const w2 = new THREE.Mesh(wheelGeo, wheelMat);
+            w2.position.set(-0.45, 0.2, -0.4); // Rear left
+            tukTukTokenMesh.add(w2);
+
+            const w3 = new THREE.Mesh(wheelGeo, wheelMat);
+            w3.position.set(0.45, 0.2, -0.4); // Rear right
+            tukTukTokenMesh.add(w3);
+
+            // Scale & Position at Start Tile (Tile 0)
+            tukTukTokenMesh.scale.set(0.75, 0.75, 0.75);
+            const startPos = tileMeshes[0].pos;
+            tukTukTokenMesh.position.copy(startPos);
+
+            scene.add(tukTukTokenMesh);
+        }
+
+        // --- 3. GAME FLOW & STATE MACHINE LOGIC ---
+
+        function returnToExploreGame() {
+            const payload = encodeURIComponent(JSON.stringify(userWallet));
+            window.location.href = `3d_dice.html?coupons=${payload}`;
+        }
+
+        // PHASE 1: CLAIM WELCOME VOUCHER
+        function claimWelcomeVoucher() {
+            playSynthSFX(880, 'triangle', 0.25);
+            confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+
+            // Add Welcome Coupons to User Wallet
+            userWallet.push({
+                id: 'w_tomyum',
+                title: '冬蔭功海鮮鍋 7 折券',
+                desc: '澳門筷子基店內用專享 ‧ 經典濃郁鮮香',
+                code: 'TK-TMY-70',
+                exp: '2026-11-30',
+                icon: 'fa-pepper-hot',
+                color: 'text-red-400',
+                productId: 'thai-tomyum',
+                discountType: 'percent',
+                discountValue: 30,
+                minSubtotal: 0,
+                discountLabel: '7 折'
+            });
+            userWallet.push({
+                id: 'w_tea',
+                title: '手沖泰式冰奶茶 免費換領券',
+                desc: '消費滿 $100 即可免費換領乙杯',
+                code: 'TK-TEA-FREE',
+                exp: '2026-11-30',
+                icon: 'fa-glass-water',
+                color: 'text-amber-400',
+                productId: 'thai-milk-tea',
+                discountType: 'percent',
+                discountValue: 100,
+                minSubtotal: 100,
+                discountLabel: '消費滿 ¥100 免費換領'
+            });
+
+            saveWalletCoupons();
+
+            // Hide Welcome Modal and Open Member Wallet
+            const welcomeModal = document.getElementById('welcome-modal');
+            welcomeModal.classList.remove('pointer-events-auto');
+            welcomeModal.classList.add('opacity-0', 'pointer-events-none');
+
+            setTimeout(() => {
+                openWalletModal();
+            }, 400);
+        }
+
+        // PHASE 2: MEMBER WALLET DRAWER LOGIC
+        function openWalletModal() {
+            playSynthSFX(523, 'sine', 0.15);
+            updateWalletUI();
+
+            const walletModal = document.getElementById('wallet-modal');
+            walletModal.classList.remove('opacity-0', 'pointer-events-none');
+            walletModal.classList.add('pointer-events-auto');
+        }
+
+        function closeWalletModal() {
+            const walletModal = document.getElementById('wallet-modal');
+            walletModal.classList.remove('pointer-events-auto');
+            walletModal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function updateWalletUI() {
+            const container = document.getElementById('wallet-items-container');
+            const badge = document.getElementById('wallet-badge');
+            if (!container || !badge) return;
+
+            badge.innerText = userWallet.length;
+
+            if (userWallet.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">卡包空空如也，快擲骰子贏取優惠券吧！</div>`;
+                return;
+            }
+
+            const usedCouponIds = readUsedCouponIds();
+            container.innerHTML = userWallet.map((item) => `
+                <div class="glass-card p-4 rounded-2xl border border-amber-400/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-slate-900/80 border border-amber-400/40 flex items-center justify-center text-xl ${item.color}">
+                            <i class="fa-solid ${item.icon}"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-black text-amber-200">${item.title}</h4>
+                            <p class="text-[11px] text-gray-300 mb-1">${item.desc}</p>
+                            <span class="text-[10px] text-gray-400">有效期至：${item.exp}</span>
+                        </div>
+                    </div>
+                    <!-- Simulated Barcode & QR Code button -->
+                    <div class="flex items-center gap-2 w-full md:w-auto justify-between border-t md:border-t-0 border-white/10 pt-2 md:pt-0">
+                        <div class="h-8 bg-white px-2 py-1 rounded flex items-center gap-0.5 opacity-90">
+                            <span class="w-0.5 h-full bg-black"></span>
+                            <span class="w-1 h-full bg-black"></span>
+                            <span class="w-0.5 h-full bg-black"></span>
+                            <span class="w-1.5 h-full bg-black"></span>
+                            <span class="w-0.5 h-full bg-black"></span>
+                            <span class="w-1 h-full bg-black"></span>
+                        </div>
+                        ${usedCouponIds.includes(item.id) ? '<span class="text-xs text-gray-500">已使用</span>' : `<button onclick="redeemGameCoupon('${item.id}')" class="glass-button text-xs font-bold px-3 py-1.5 rounded-lg text-amber-300 border border-amber-400/40">核銷卡券</button>`}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function readUsedCouponIds() {
+            try {
+                return JSON.parse(localStorage.getItem('gogotaiwan-used-coupons') || '[]');
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function redeemGameCoupon(couponId) {
+            const coupon = userWallet.find(item => item.id === couponId);
+            if (!coupon || readUsedCouponIds().includes(couponId)) return;
+            window.location.href = `shopping.html?coupon=${encodeURIComponent(JSON.stringify(coupon))}`;
+        }
+
+        // TRANSITION FROM WALLET TO MONOPOLY 3D GAME
+        function startMonopolyGame() {
+            closeWalletModal();
+
+            // Show HUD & Controller
+            document.getElementById('hud-header').classList.remove('opacity-0');
+            document.getElementById('game-controller').classList.remove('opacity-0');
+
+            // Smooth Camera Zoom Out to Full Monopoly Overview View
+            gsap.timeline({ onUpdate: () => controls.update() })
+                .to(controls.target, { x: CAM_OVERVIEW.target.x, y: CAM_OVERVIEW.target.y, z: CAM_OVERVIEW.target.z, duration: 1.8, ease: "power2.inOut" }, 0)
+                .to(camera.position, { x: CAM_OVERVIEW.pos.x, y: CAM_OVERVIEW.pos.y, z: CAM_OVERVIEW.pos.z, duration: 2.0, ease: "power2.inOut" }, 0);
+        }
+
+        // PHASE 3: ROLL DICE & MOVE TOKEN ALONG 3D TRACK
+        function handleRollDice() {
+            if (isMovingToken) return;
+
+            if (diceRollsLeft <= 0) {
+                alert('您的骰子次數已用完！可透過去店內消費或每日簽到獲得更多骰子。');
+                return;
+            }
+
+            isMovingToken = true;
+            diceRollsLeft--;
+            document.getElementById('dice-count-display').innerText = `${diceRollsLeft} 次`;
+
+            const btn = document.getElementById('btn-roll-dice');
+            btn.classList.add('opacity-50', 'pointer-events-none');
+
+            // Play Dice Rolling Sound
+            playSynthSFX(600, 'sawtooth', 0.3);
+
+            // Random Dice Result (1 ~ 6)
+            const diceResult = Math.floor(Math.random() * 6) + 1;
+
+            // Move Tuk-Tuk Token Step by Step
+            moveTokenSteps(diceResult, () => {
+                isMovingToken = false;
+                btn.classList.remove('opacity-50', 'pointer-events-none');
+                
+                // Trigger Landing Tile Event
+                triggerTileEvent(currentTileIndex);
+            });
+        }
+
+        function moveTokenSteps(steps, onComplete) {
+            let stepCount = 0;
+
+            function doSingleStep() {
+                if (stepCount >= steps) {
+                    onComplete();
+                    return;
+                }
+
+                stepCount++;
+                currentTileIndex = (currentTileIndex + 1) % 16;
+                const targetTile = tileMeshes[currentTileIndex];
+
+                // Play Step Hop Sound
+                playSynthSFX(350 + currentTileIndex * 20, 'sine', 0.1);
+
+                // Update UI Hint
+                document.getElementById('current-tile-name').innerText = targetTile.data.name;
+
+                // GSAP Hop Jump Animation
+                const targetPos = targetTile.pos;
+                
+                // Orient TukTuk towards next tile direction
+                tukTukTokenMesh.lookAt(targetPos.x, tukTukTokenMesh.position.y, targetPos.z);
+
+                gsap.timeline({ onComplete: doSingleStep })
+                    .to(tukTukTokenMesh.position, { x: targetPos.x, z: targetPos.z, duration: 0.32, ease: "power1.inOut" }, 0)
+                    .to(tukTukTokenMesh.position, { y: targetPos.y + 0.8, duration: 0.16, yoyo: true, repeat: 1, ease: "sine.out" }, 0);
+            }
+
+            doSingleStep();
+        }
+
+        // TILE LANDING EVENT ROUTER
+        function triggerTileEvent(tileIndex) {
+            const tile = MONOPOLY_TILES[tileIndex];
+
+            // If START TILE
+            if (tile.type === 'START') {
+                foodScore += 200;
+                document.getElementById('score-display').innerText = foodScore.toLocaleString();
+                playSynthSFX(880, 'triangle', 0.3);
+                showEventModal(tile, '踩中起點格！加碼獲得美食積分 +200');
+                return;
+            }
+
+            // If QUIZ TILE
+            if (tile.type === 'QUIZ') {
+                openQuizModal();
+                return;
+            }
+
+            // If FATE / CHEST TILE
+            if (tile.type === 'FATE' || tile.type === 'CHEST') {
+                foodScore += 150;
+                document.getElementById('score-display').innerText = foodScore.toLocaleString();
+                playSynthSFX(784, 'sine', 0.25);
+                showEventModal(tile, tile.desc);
+                return;
+            }
+
+            // REWARD FOOD VOUCHER TILE
+            playSynthSFX(880, 'triangle', 0.3);
+            confetti({ particleCount: 50, spread: 50, origin: { y: 0.6 } });
+
+            // Automatically add reward coupon to user wallet
+            userWallet.push({
+                id: `tile_${Date.now()}`,
+                title: tile.name + ' 美食禮券',
+                desc: tile.desc,
+                code: `TK-${tile.type}-${Math.floor(Math.random() * 8999 + 1000)}`,
+                exp: '2026-11-30',
+                icon: tile.icon,
+                color: 'text-amber-400',
+                productId: ({
+                    THAI_TEA: 'thai-milk-tea',
+                    TOM_YUM: 'thai-tomyum',
+                    CURRY_CRAB: 'thai-curry-crab',
+                    MANGO_RICE: 'thai-mango-rice',
+                    VOLCANO_RIBS: 'thai-volcano-ribs',
+                    RAW_SHRIMP: 'thai-raw-shrimp',
+                    GREEN_CURRY: 'thai-green-curry',
+                    PAD_THAI: 'thai-pad-thai'
+                })[tile.type] || 'thai-milk-tea',
+                discountType: ({
+                    THAI_TEA: 'percent', TOM_YUM: 'percent', CURRY_CRAB: 'fixed',
+                    MANGO_RICE: 'percent', VOLCANO_RIBS: 'fixed', RAW_SHRIMP: 'percent',
+                    GREEN_CURRY: 'fixed', PAD_THAI: 'percent'
+                })[tile.type] || 'percent',
+                discountValue: ({
+                    THAI_TEA: 100, TOM_YUM: 30, CURRY_CRAB: 50, MANGO_RICE: 50,
+                    VOLCANO_RIBS: 30, RAW_SHRIMP: 20, GREEN_CURRY: 25, PAD_THAI: 100
+                })[tile.type] || 100,
+                minSubtotal: tile.type === 'THAI_TEA' ? 100 : 0,
+                discountLabel: ({
+                    THAI_TEA: '消費滿 ¥100 免費換領', TOM_YUM: '7 折', CURRY_CRAB: '折抵 ¥50',
+                    MANGO_RICE: '5 折', VOLCANO_RIBS: '折抵 ¥30', RAW_SHRIMP: '8 折',
+                    GREEN_CURRY: '折抵 ¥25', PAD_THAI: '免費兌換'
+                })[tile.type] || '專屬優惠'
+            });
+            saveWalletCoupons();
+
+            showEventModal(tile, tile.desc);
+        }
+
+        function showEventModal(tile, descText) {
+            document.getElementById('event-title').innerText = tile.name;
+            document.getElementById('event-desc').innerText = descText;
+            document.getElementById('event-reward-text').innerText = tile.reward;
+            document.getElementById('event-icon').className = `fa-solid ${tile.icon}`;
+
+            const modal = document.getElementById('event-modal');
+            const card = document.getElementById('event-card');
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.classList.add('pointer-events-auto');
+            card.classList.remove('scale-95');
+            card.classList.add('scale-100');
+        }
+
+        function claimEventReward() {
+            const modal = document.getElementById('event-modal');
+            const card = document.getElementById('event-card');
+
+            modal.classList.remove('pointer-events-auto');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            card.classList.add('scale-95');
+            card.classList.remove('scale-100');
+        }
+
+        // QUIZ SYSTEM LOGIC
+        const QUIZ_BANK = [
+            {
+                q: '正宗泰國「冬蔭功湯 (Tom Yum Goong)」名稱中的 "Goong" 代表什麼食材？',
+                options: ['A. 鮮蝦', 'B. 雞肉', 'C. 椰奶', 'D. 香茅'],
+                answer: 0
+            },
+            {
+                q: '「筷子基泰味鮮」的手沖泰式奶茶呈現獨特橘紅色，主因是什麼？',
+                options: ['A. 添加食用色素', 'B. 深度烘焙泰國紅茶葉發酵', 'C. 芒果汁調色', 'D. 泰國胡蘿蔔汁'],
+                answer: 1
+            }
+        ];
+
+        function openQuizModal() {
+            const quiz = QUIZ_BANK[Math.floor(Math.random() * QUIZ_BANK.length)];
+            document.getElementById('quiz-question').innerText = quiz.q;
+
+            const container = document.getElementById('quiz-options-container');
+            container.innerHTML = quiz.options.map((opt, idx) => `
+                <button onclick="submitQuizAnswer(${idx}, ${quiz.answer})" class="w-full glass-card p-3 rounded-xl border border-emerald-400/30 text-left text-xs text-gray-200 hover:text-white hover:border-emerald-400 font-semibold transition-all">
+                    ${opt}
+                </button>
+            `).join('');
+
+            const modal = document.getElementById('quiz-modal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function submitQuizAnswer(selected, correct) {
+            const modal = document.getElementById('quiz-modal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+
+            if (selected === correct) {
+                foodScore += 300;
+                document.getElementById('score-display').innerText = foodScore.toLocaleString();
+                playSynthSFX(880, 'triangle', 0.3);
+                confetti({ particleCount: 60, spread: 60 });
+                alert('🎉 恭喜答對！獲得 +300 美食積分獎賞！');
+            } else {
+                alert('😅 差一點就答對了！繼續加油～');
+            }
+        }
+
+        // --- 4. AUDIO ENGINE (WEB AUDIO API) ---
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            isAudioPlaying = !isAudioPlaying;
+            const icon = document.getElementById('sound-icon');
+            icon.className = isAudioPlaying ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+            if (isAudioPlaying) playSynthSFX(523, 'sine', 0.2);
+        }
+
+        function playSynthSFX(freq, type = 'sine', duration = 0.2) {
+            if (!isAudioPlaying || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        function updateLoadingBar(percent) {
+            const bar = document.getElementById('loading-bar');
+            if (bar) bar.style.width = `${percent}%`;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Render Loop
+        function animate(time) {
+            requestAnimationFrame(animate);
+            const t = time * 0.001;
+
+            controls.update();
+
+            // Rotate Thai Pavilion Spire light or Floating items
+            if (islandGroup) {
+                islandGroup.position.y = Math.sin(t * 1.2) * 0.05;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initEngine();
+            build3DWorld();
+            animate(0);
+            loadWalletCoupons();
+        };
+    </script>
+</body>
+</html>
